@@ -1,90 +1,104 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 const PlanningApp = () => {
     const shifts = {
-        '-': { label: '-', hours: 0 },
-        'JC-': { label: 'JC-', hours: 7 },
-        'V': { label: 'V', hours: 7.75 },
-        'N1': { label: 'N1', hours: 7.25 },
-        'P': { label: 'P', hours: 7.25 },
-        'N2': { label: 'N2', hours: 7.25 },
-        'JC': { label: 'JC', hours: 7 }
+        'R': { label: 'R', hours: 0, color: 'white' },
+        'JC-': { label: 'JC-', hours: 7, color: 'yellow' },
+        'V': { label: 'V', hours: 7.75, color: 'red' },
+        'N1': { label: 'N1', hours: 7.25, color: 'orange' },
+        'P': { label: 'P', hours: 7.25, color: 'green' },
+        'N2': { label: 'N2', hours: 7.25, color: 'blue' },
+        'JC': { label: 'JC', hours: 7, color: 'purple' },
+        'LAC': { label: 'LAC', hours: 7, color: 'pink' },
     };
 
-    // Gestion des semaines (exemple 2 semaines)
-    const weeks = [
-        {
-            label: '02 juin 2025',
-            days: [
-                'lundi 02/06',
-                'mardi 03/06',
-                'mercredi 04/06',
-                'jeudi 05/06',
-                'vendredi 06/06',
-                'samedi 07/06',
-                'dimanche 08/06'
-            ]
-        },
-        {
-            label: '09 juin 2025',
-            days: [
-                'lundi 09/06',
-                'mardi 10/06',
-                'mercredi 11/06',
-                'jeudi 12/06',
-                'vendredi 13/06',
-                'samedi 14/06',
-                'dimanche 15/06'
-            ]
-        }
-    ];
+    // Fonction pour convertir les heures décimales en format h:mm
+    const formatHours = (decimalHours) => {
+        if (decimalHours === 0) return '0h00';
+        const hours = Math.floor(decimalHours);
+        const minutes = Math.round((decimalHours - hours) * 60);
+        return `${hours}h${minutes.toString().padStart(2, '0')}`;
+    };
 
-    const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+    // Génère toutes les semaines de l'année en cours (lundi au dimanche)
+    const generateWeeks = (year) => {
+        const weeks = [];
+        const date = new Date(year, 0, 1);
+
+        // Ajuster au premier lundi de l'année
+        while (date.getDay() !== 1) { // 1 = lundi
+            date.setDate(date.getDate() + 1);
+        }
+
+        // Formater un jour "lundi 02/06"
+        const formatDay = (d) => {
+            const daysFR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+            const dayName = daysFR[d.getDay()];
+            const dayNum = String(d.getDate()).padStart(2, '0');
+            const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+            return `${dayName} ${dayNum}/${monthNum}`;
+        };
+
+        while (date.getFullYear() === year) {
+            const weekDays = [];
+            for (let i = 0; i < 7; i++) {
+                const currentDay = new Date(date);
+                currentDay.setDate(date.getDate() + i);
+                if (currentDay.getFullYear() === year) {
+                    weekDays.push(formatDay(currentDay));
+                }
+            }
+            if (weekDays.length === 7) {
+                // Label semaine = date du lundi format "02 juin 2025"
+                const labelDate = date;
+                const options = { day: '2-digit', month: 'long', year: 'numeric' };
+                const label = labelDate.toLocaleDateString('fr-FR', options);
+
+                weeks.push({ label, days: weekDays });
+            }
+            date.setDate(date.getDate() + 7);
+        }
+        return weeks;
+    };
+
+    const currentYear = new Date().getFullYear();
+    const weeks = generateWeeks(currentYear);
+
+    // Formattage date aujourd'hui pour comparer avec les jours des semaines
+    const today = new Date();
+    const todayFormatted = (() => {
+        const daysFR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+        const dayName = daysFR[today.getDay()];
+        const dayNum = String(today.getDate()).padStart(2, '0');
+        const monthNum = String(today.getMonth() + 1).padStart(2, '0');
+        return `${dayName} ${dayNum}/${monthNum}`;
+    })();
+
+    // Trouver l'index de la semaine qui contient la date d'aujourd'hui
+    const currentWeekDefaultIndex = weeks.findIndex(week => week.days.includes(todayFormatted));
+
+    const [currentWeekIndex, setCurrentWeekIndex] = useState(() =>
+        currentWeekDefaultIndex !== -1 ? currentWeekDefaultIndex : 0
+    );
     const currentWeek = weeks[currentWeekIndex];
     const days = currentWeek.days;
 
     const [newName, setNewName] = useState('');
     const [planningData, setPlanningData] = useState(() => {
-        const saved = localStorage.getItem('planningData');
-        return saved
-            ? JSON.parse(saved)
-            : {
-                'titouan': {
-                    [weeks[0].days[0]]: '-',
-                    [weeks[0].days[1]]: '-',
-                    [weeks[0].days[2]]: '-',
-                    [weeks[0].days[3]]: '-',
-                    [weeks[0].days[4]]: '-',
-                    [weeks[0].days[5]]: '-',
-                    [weeks[0].days[6]]: '-',
-                    // Init semaine 2 aussi à vide (facultatif)
-                    [weeks[1].days[0]]: '-',
-                    [weeks[1].days[1]]: '-',
-                    [weeks[1].days[2]]: '-',
-                    [weeks[1].days[3]]: '-',
-                    [weeks[1].days[4]]: '-',
-                    [weeks[1].days[5]]: '-',
-                    [weeks[1].days[6]]: '-',
-                }
-            };
+        // Init planning vide pour tous les utilisateurs et toutes les semaines
+        return {};
     });
 
-    // Heures libérées par personne
     const [heuresLiberees, setHeuresLiberees] = useState(() => {
-        const saved = localStorage.getItem('heuresLiberees');
-        return saved ? JSON.parse(saved) : {};
+        return {};
     });
 
-    useEffect(() => {
-        localStorage.setItem('planningData', JSON.stringify(planningData));
-    }, [planningData]);
-
-    useEffect(() => {
-        localStorage.setItem('heuresLiberees', JSON.stringify(heuresLiberees));
-    }, [heuresLiberees]);
+    // État pour la popup de suppression
+    const [deletePopup, setDeletePopup] = useState({ show: false, person: null });
 
     const addPerson = () => {
         if (newName.trim() && !planningData[newName.toLowerCase()]) {
+            // Initialise planning vide sur toutes les semaines pour cette personne
             const newPersonData = {};
             weeks.forEach(week => {
                 week.days.forEach(day => {
@@ -110,6 +124,7 @@ const PlanningApp = () => {
             delete newData[personName];
             return newData;
         });
+        setDeletePopup({ show: false, person: null });
     };
 
     const updateShift = (person, day, shift) => {
@@ -135,16 +150,15 @@ const PlanningApp = () => {
     };
 
     const calculateHours = (person) => {
+        // Calcul uniquement sur la semaine affichée (days)
         const totalHours = days.reduce((sum, day) => {
-            const shift = planningData[person][day];
+            const shift = planningData[person]?.[day] || '-';
             return sum + (shifts[shift]?.hours || 0);
         }, 0);
 
         const lib = heuresLiberees[person] || 0;
-
         const rawExtra = totalHours - 35 - lib;
         const extraHours = rawExtra > 0 ? rawExtra : 0;
-
         const adjustedTotal = totalHours - lib > 0 ? totalHours - lib : 0;
 
         return {
@@ -156,9 +170,8 @@ const PlanningApp = () => {
     const exportCSV = () => {
         const headers = ['Prénom', ...days, 'Heures sup.', 'Heures libérées', 'Total travaillé'];
         const rows = Object.keys(planningData).map(person => {
-            // Calcul total sur la semaine courante uniquement
             const totalHours = days.reduce((sum, day) => {
-                const shift = planningData[person][day];
+                const shift = planningData[person]?.[day] || '-';
                 return sum + (shifts[shift]?.hours || 0);
             }, 0);
             const lib = heuresLiberees[person] || 0;
@@ -167,10 +180,10 @@ const PlanningApp = () => {
 
             return [
                 person,
-                ...days.map(day => planningData[person][day]),
-                `${extraHours}h`,
-                `${lib}h`,
-                `${adjustedTotal}h`
+                ...days.map(day => planningData[person]?.[day] || '-'),
+                formatHours(extraHours),
+                formatHours(lib),
+                formatHours(adjustedTotal)
             ];
         });
 
@@ -182,6 +195,116 @@ const PlanningApp = () => {
         a.download = `planning-${currentWeek.label.replace(/\s/g, '-')}.csv`;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const exportPNG = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Taille du canvas (sans la colonne supprimer)
+        const cellWidth = 120;
+        const cellHeight = 40;
+        const cols = days.length + 4; // jours + prénom + 3 colonnes heures
+        const rows = Object.keys(planningData).length + 1; // données + header
+
+        canvas.width = cols * cellWidth;
+        canvas.height = rows * cellHeight;
+
+        // Fond blanc
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Style de texte
+        ctx.font = '14px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Header
+        const headers = ['Prénom', ...days, 'Heures sup.', 'Heures libérées', 'Total travaillé'];
+        headers.forEach((header, colIndex) => {
+            // Fond header
+            ctx.fillStyle = header === todayFormatted ? '#fde68a' : '#f3f4f6';
+            ctx.fillRect(colIndex * cellWidth, 0, cellWidth, cellHeight);
+
+            // Bordure
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.strokeRect(colIndex * cellWidth, 0, cellWidth, cellHeight);
+
+            // Texte header
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.fillText(header, colIndex * cellWidth + cellWidth / 2, cellHeight / 2);
+        });
+
+        // Données
+        Object.keys(planningData).forEach((person, rowIndex) => {
+            const y = (rowIndex + 1) * cellHeight;
+            const { extraHours, adjustedTotal } = calculateHours(person);
+
+            // Prénom
+            ctx.fillStyle = '#f9fafb';
+            ctx.fillRect(0, y, cellWidth, cellHeight);
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.strokeRect(0, y, cellWidth, cellHeight);
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 14px Inter, sans-serif';
+            ctx.fillText(person, cellWidth / 2, y + cellHeight / 2);
+
+            // Jours avec couleurs de shifts
+            days.forEach((day, dayIndex) => {
+                const colIndex = dayIndex + 1;
+                const x = colIndex * cellWidth;
+                const shiftKey = planningData[person][day] || '-';
+                const shift = shifts[shiftKey];
+
+                // Fond couleur du shift
+                ctx.fillStyle = shift?.color || 'white';
+                ctx.fillRect(x, y, cellWidth, cellHeight);
+
+                // Bordure
+                ctx.strokeStyle = '#e5e7eb';
+                ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+                // Texte shift
+                ctx.fillStyle = 'black';
+                ctx.font = 'bold 14px Inter, sans-serif';
+                ctx.fillText(shift?.label || '-', x + cellWidth / 2, y + cellHeight / 2);
+            });
+
+            // Colonnes heures
+            const hoursCols = [
+                formatHours(extraHours),
+                formatHours(heuresLiberees[person] || 0),
+                formatHours(adjustedTotal)
+            ];
+
+            hoursCols.forEach((value, colIndex) => {
+                const x = (days.length + 1 + colIndex) * cellWidth;
+
+                // Fond
+                ctx.fillStyle = '#e0f2fe';
+                ctx.fillRect(x, y, cellWidth, cellHeight);
+
+                // Bordure
+                ctx.strokeStyle = '#e5e7eb';
+                ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+                // Texte
+                ctx.fillStyle = 'black';
+                ctx.font = 'bold 14px Inter, sans-serif';
+                ctx.fillText(value, x + cellWidth / 2, y + cellHeight / 2);
+            });
+        });
+
+        // Télécharger
+        canvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `planning-${currentWeek.label.replace(/\s/g, '-')}.png`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
     };
 
     const styles = {
@@ -229,7 +352,8 @@ const PlanningApp = () => {
             justifyContent: 'center',
             gap: '8px',
             marginTop: '16px',
-            marginBottom: '24px'
+            marginBottom: '24px',
+            flexWrap: 'wrap'
         },
         navButton: {
             padding: '8px 16px',
@@ -237,13 +361,15 @@ const PlanningApp = () => {
             color: '#1e293b',
             border: 'none',
             borderRadius: '6px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            userSelect: 'none'
         },
         addSection: {
             display: 'flex',
             justifyContent: 'center',
             gap: '8px',
-            marginTop: '12px'
+            marginTop: '12px',
+            flexWrap: 'wrap'
         },
         input: {
             padding: '8px 12px',
@@ -275,216 +401,284 @@ const PlanningApp = () => {
             backgroundColor: '#f3f4f6'
         },
         th: {
-            padding: '12px 8px',
+            border: '1px solid #e5e7eb',
+            padding: '8px',
             textAlign: 'center',
+            whiteSpace: 'nowrap',
             fontWeight: '600',
-            color: '#1f2937',
-            fontSize: '14px',
-            borderRight: '1px solid #e5e7eb'
+            fontSize: '12px',
+            backgroundColor: '#f3f4f6',
+            userSelect: 'none',
+            cursor: 'default'
         },
         td: {
-            padding: '10px 8px',
+            border: '1px solid #e5e7eb',
+            padding: '8px',
             textAlign: 'center',
-            borderRight: '1px solid #e5e7eb',
-            borderBottom: '1px solid #e5e7eb'
+            fontSize: '14px',
+            userSelect: 'none'
         },
         select: {
             width: '100%',
-            padding: '6px 8px',
-            fontSize: '13px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '6px',
-            backgroundColor: '#f8fafc',
-            color: '#1e293b',
-            outline: 'none',
-            appearance: 'none',
-            textAlign: 'center',
-            cursor: 'pointer'
-        },
-        deleteButton: {
-            padding: '6px 12px',
-            backgroundColor: '#ef4444',
-            color: 'white',
+            padding: '4px',
+            borderRadius: '4px',
             border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            transition: 'background-color 0.2s ease'
-        },
-        footer: {
-            backgroundColor: '#f3f4f6',
-            padding: '16px',
-            textAlign: 'center',
-            borderTop: '1px solid #e5e7eb'
-        },
-        exportButton: {
-            padding: '14px 24px',
-            backgroundColor: '#10b981',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
             fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer'
+            color: '#1e293b',
+            fontWeight: '600',
+            appearance: 'none',
+            backgroundColor: 'transparent',
+            outline: 'none'
         },
-        rowEven: {
-            backgroundColor: 'white'
+        nameCell: {
+            fontWeight: '600',
+            textTransform: 'capitalize',
+            backgroundColor: '#f9fafb',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s'
         },
-        rowOdd: {
-            backgroundColor: '#f9fafb'
+        nameCellHover: {
+            backgroundColor: '#fee2e2'
         },
-        heuresLibereesCell: {
+        hoursCell: {
+            fontWeight: '700',
+            backgroundColor: '#e0f2fe'
+        },
+        todayHeader: {
+            backgroundColor: '#fde68a',
+            fontWeight: '700'
+        },
+        heuresLibereesControls: {
             display: 'flex',
-            justifyContent: 'center',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '6px'
         },
         heuresLibereesButton: {
-            padding: '2px 6px',
+            padding: '2px 8px',
             backgroundColor: '#3b82f6',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
             fontWeight: '700',
-            fontSize: '14px',
             userSelect: 'none'
         },
-        heuresLibereesValue: {
-            minWidth: '28px',
-            textAlign: 'center',
-            fontWeight: '600'
+        // Styles pour la popup
+        popupOverlay: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
         },
-        todayHeader: {
-            backgroundColor: '#2563eb',
+        popup: {
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            boxShadow: '0 12px 24px rgba(0, 0, 0, 0.2)',
+            minWidth: '300px',
+            textAlign: 'center'
+        },
+        popupTitle: {
+            fontSize: '18px',
+            fontWeight: '600',
+            marginBottom: '12px',
+            color: '#1e293b'
+        },
+        popupText: {
+            fontSize: '14px',
+            color: '#64748b',
+            marginBottom: '20px'
+        },
+        popupButtons: {
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'center'
+        },
+        popupButtonCancel: {
+            padding: '8px 16px',
+            backgroundColor: '#e2e8f0',
+            color: '#1e293b',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '500'
+        },
+        popupButtonDelete: {
+            padding: '8px 16px',
+            backgroundColor: '#ef4444',
             color: 'white',
-            borderRadius: '4px',
-            padding: '4px 8px',
-            display: 'inline-block',
-            fontWeight: '700'
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '500'
         }
     };
-
-    // Mettre en avant le jour actuel dans l'en-tête s'il est dans la semaine
-    const today = new Date();
-    const todayStr = today.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit' }); // ex: "mardi 03/06"
-    // Attention format à bien matcher les jours dans days
-    // Nos jours sont formatés comme "lundi 02/06"
-    // Il faut récupérer la date au format "jour dd/mm"
-    // Le toLocaleDateString en fr-FR avec weekday long et day/month va générer "mardi 03/06"
-    // ça correspond à ce qu'on a dans days
 
     return (
         <div style={styles.container}>
             <div style={styles.card}>
-                <div style={styles.header}>
-                    <h1 style={styles.title}>Planning</h1>
-                    <h2 style={styles.subtitle}>Semaine du {currentWeek.label}</h2>
+                <header style={styles.header}>
+                    <h1 style={styles.title}>Planning Semaine</h1>
+                    <p style={styles.subtitle}>{currentWeek.label}</p>
                     <div style={styles.navButtons}>
                         <button
                             style={styles.navButton}
-                            disabled={currentWeekIndex === 0}
-                            onClick={() => setCurrentWeekIndex(i => Math.max(0, i - 1))}
+                            onClick={() => setCurrentWeekIndex(i => (i > 0 ? i - 1 : i))}
                         >
-                            ← Précédente
+                            {'<'} Semaine précédente
                         </button>
                         <button
                             style={styles.navButton}
-                            disabled={currentWeekIndex === weeks.length - 1}
-                            onClick={() => setCurrentWeekIndex(i => Math.min(weeks.length - 1, i + 1))}
+                            onClick={() => setCurrentWeekIndex(i => (i < weeks.length - 1 ? i + 1 : i))}
                         >
-                            Suivante →
+                            Semaine suivante {'>'}
+                        </button>
+                        <button
+                            style={styles.navButton}
+                            onClick={() => setCurrentWeekIndex(currentWeekDefaultIndex !== -1 ? currentWeekDefaultIndex : 0)}
+                        >
+                            Semaine courante
                         </button>
                     </div>
                     <div style={styles.addSection}>
                         <input
                             type="text"
+                            placeholder="Ajouter prénom"
                             value={newName}
-                            onChange={(e) => setNewName(e.target.value)}
-                            placeholder="Nouveau prénom"
+                            onChange={e => setNewName(e.target.value)}
                             style={styles.input}
-                            onKeyPress={(e) => e.key === 'Enter' && addPerson()}
+                            onKeyDown={e => e.key === 'Enter' && addPerson()}
                         />
                         <button onClick={addPerson} style={styles.addButton}>
                             Ajouter
                         </button>
+                        <button onClick={exportCSV} style={styles.addButton}>
+                            Exporter CSV
+                        </button>
+                        <button onClick={exportPNG} style={styles.addButton}>
+                            Exporter PNG
+                        </button>
                     </div>
-                </div>
+                </header>
                 <div style={styles.tableContainer}>
                     <table style={styles.table}>
                         <thead style={styles.tableHeader}>
                             <tr>
-                                <th style={styles.th}>Prénom</th>
-                                {days.map(day => {
-                                    const isToday = day === todayStr;
-                                    return (
-                                        <th key={day} style={styles.th}>
-                                            {isToday ? (
-                                                <span style={styles.todayHeader}>{day}</span>
-                                            ) : (
-                                                day
-                                            )}
-                                        </th>
-                                    );
-                                })}
+                                <th style={{ ...styles.th, minWidth: '120px' }}>Prénom</th>
+                                {days.map(day => (
+                                    <th
+                                        key={day}
+                                        style={{
+                                            ...styles.th,
+                                            ...(day === todayFormatted ? styles.todayHeader : {})
+                                        }}
+                                    >
+                                        {day}
+                                    </th>
+                                ))}
                                 <th style={styles.th}>Heures sup.</th>
                                 <th style={styles.th}>Heures libérées</th>
-                                <th style={styles.th}>Total</th>
-                                <th style={styles.th}>Actions</th>
+                                <th style={styles.th}>Total travaillé</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {Object.keys(planningData).map((person, index) => {
+                            {Object.keys(planningData).map(person => {
                                 const { extraHours, adjustedTotal } = calculateHours(person);
                                 return (
-                                    <tr key={person} style={index % 2 === 0 ? styles.rowEven : styles.rowOdd}>
-                                        <td style={{ ...styles.td, fontWeight: '600', textTransform: 'capitalize' }}>{person}</td>
-                                        {days.map(day => (
-                                            <td key={day} style={styles.td}>
-                                                <select
-                                                    value={planningData[person][day]}
-                                                    onChange={(e) => updateShift(person, day, e.target.value)}
-                                                    style={styles.select}
-                                                >
-                                                    {Object.entries(shifts).map(([key, shift]) => (
-                                                        <option key={key} value={key}>{shift.label}</option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                        ))}
-                                        <td style={styles.td}>{extraHours > 0 ? `${extraHours}h` : '0h'}</td>
-                                        <td style={{ ...styles.td, ...styles.heuresLibereesCell }}>
-                                            <button
-                                                style={styles.heuresLibereesButton}
-                                                onClick={() => changeHeuresLiberees(person, -1)}
-                                                title="Réduire de 1h"
-                                            >−</button>
-                                            <span style={styles.heuresLibereesValue}>{heuresLiberees[person] || 0}h</span>
-                                            <button
-                                                style={styles.heuresLibereesButton}
-                                                onClick={() => changeHeuresLiberees(person, 1)}
-                                                title="Augmenter de 1h"
-                                            >+</button>
+                                    <tr key={person}>
+                                        <td
+                                            style={styles.nameCell}
+                                            onClick={() => setDeletePopup({ show: true, person })}
+                                            onMouseEnter={(e) => {
+                                                e.target.style.backgroundColor = '#fee2e2';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.target.style.backgroundColor = '#f9fafb';
+                                            }}
+                                        >
+                                            {person}
                                         </td>
-                                        <td style={{ ...styles.td, fontWeight: 'bold' }}>{adjustedTotal}h</td>
-                                        <td style={styles.td}>
+                                        {days.map(day => {
+                                            const shiftKey = planningData[person][day] || '-';
+                                            return (
+                                                <td
+                                                    key={day}
+                                                    style={{
+                                                        ...styles.td,
+                                                        backgroundColor: shifts[shiftKey]?.color || 'white'
+                                                    }}
+                                                >
+                                                    <select
+                                                        value={shiftKey}
+                                                        onChange={e => updateShift(person, day, e.target.value)}
+                                                        style={styles.select}
+                                                    >
+                                                        {Object.keys(shifts).map(shiftKey => (
+                                                            <option key={shiftKey} value={shiftKey}>
+                                                                {shifts[shiftKey].label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                            );
+                                        })}
+                                        <td style={styles.hoursCell}>{formatHours(extraHours)}</td>
+                                        <td style={styles.hoursCell}>
                                             <button
-                                                onClick={() => removePerson(person)}
-                                                style={styles.deleteButton}
+                                                style={{ marginRight: '4px' }}
+                                                onClick={() => changeHeuresLiberees(person, -1)}
                                             >
-                                                Supprimer
+                                                -
+                                            </button>
+                                            {formatHours(heuresLiberees[person] || 0)}
+                                            <button
+                                                style={{ marginLeft: '4px' }}
+                                                onClick={() => changeHeuresLiberees(person, 1)}
+                                            >
+                                                +
                                             </button>
                                         </td>
+                                        <td style={styles.hoursCell}>{formatHours(adjustedTotal)}</td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
-                <div style={styles.footer}>
-                    <button onClick={exportCSV} style={styles.exportButton}>Exporter CSV</button>
-                </div>
             </div>
+
+            {/* Popup de confirmation de suppression */}
+            {deletePopup.show && (
+                <div style={styles.popupOverlay}>
+                    <div style={styles.popup}>
+                        <h3 style={styles.popupTitle}>Confirmer la suppression</h3>
+                        <p style={styles.popupText}>
+                            Voulez-vous vraiment supprimer <strong>{deletePopup.person}</strong> du planning ?
+                        </p>
+                        <div style={styles.popupButtons}>
+                            <button
+                                style={styles.popupButtonCancel}
+                                onClick={() => setDeletePopup({ show: false, person: null })}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                style={styles.popupButtonDelete}
+                                onClick={() => removePerson(deletePopup.person)}
+                            >
+                                Supprimer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
