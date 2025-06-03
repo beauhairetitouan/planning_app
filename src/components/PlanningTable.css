@@ -1,0 +1,13 @@
+.planning-table-container {
+    padding: 24px;
+    font-family: Arial, sans-serif;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 24px;
+    text-align: center;
+}
